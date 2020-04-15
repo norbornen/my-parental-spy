@@ -14,8 +14,7 @@ export default class WatchdogService {
     private _syncService?: SyncService;
     private _infoService?: InfoService;
     private infoTimeout = 2 * 1000;
-    // private syncTimeout = 2 * 60 * 1000;
-    private syncTimeout = 30 * 1000;
+    private syncTimeout = 2 * 60 * 1000;
     private infoTimeoutRef?: NodeJS.Timeout;
     private syncTimeoutRef?: NodeJS.Timeout;
 

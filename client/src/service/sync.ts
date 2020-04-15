@@ -1,16 +1,16 @@
 import log from 'electron-log';
-import { net, ClientRequest } from 'electron';
+import { net } from 'electron';
 import { pipeline, Readable, Writable } from 'stream';
-import { createGzip } from 'zlib';
 import { promisify } from 'util';
+import * as zlib from 'zlib';
 import * as crypto from 'crypto';
 import createHttpError, * as HttpErrors from 'http-errors';
 import pRetry from 'p-retry';
+import { boundMethod } from 'autobind-decorator';
 import * as asyncJSON from './async-json';
 import { async_timer } from 'execution-time-decorators';
 
-const pipe = promisify(pipeline);
-
+const gzipPromisify = promisify<zlib.InputType, Buffer>(zlib.gzip);
 
 /**
  * TODO
@@ -30,13 +30,18 @@ export default class SyncService {
 
     @async_timer
     public async syncOnce<T extends any>(data: any): Promise<T> {
-        return asyncJSON.stringify(data).then((formData): Promise<T> => this.sync_req(formData));
+        const json = await asyncJSON.stringify(data);
+        const [ jsonGzip, sign ] = await Promise.all([ gzipPromisify(json), this.sign(json) ]);
+        return this.sync_req(jsonGzip, sign);
     }
 
     @async_timer
     public async sync<T extends any>(data: any): Promise<T> {
-        return asyncJSON.stringify(data).then((formData): Promise<T> => {
-            return pRetry(() => this.sync_req(formData), {
+        const json = await asyncJSON.stringify(data);
+        const [ jsonGzip, sign ] = await Promise.all([ gzipPromisify(json), this.sign(json) ]);
+        return pRetry<T>(
+            () => this.sync_req(jsonGzip, sign),
+            {
                 onFailedAttempt: (err) => {
                     if (err instanceof HttpErrors.HttpError && (err.statusCode === 406 || err.statusCode === 500)) {
                         throw err;
@@ -45,21 +50,19 @@ export default class SyncService {
                 },
                 retries: 10,
                 factor: 3,
-            });
-        });
+            }
+        );
     }
 
-    private async sync_req(formData: string): Promise<any> {
-        return new Promise(async (resolve, reject) => {
-            const sign = this.sign(formData);
+    private async sync_req(formData: Buffer, sign?: string): Promise<any> {
+        return new Promise((resolve, reject) => {
             const syncUrl = `${this.endpoint}/sync?sign=${sign}`.replace(/(?<!:)\/{2,}/g, '/');
             const request = net.request({
                 url: syncUrl,
                 method: 'POST'
             });
-            request.chunkedEncoding = true;
             request.setHeader('Content-Type', 'text/plain');
-            request.setHeader('Content-Encoding', 'gzip');
+            request.setHeader('X-UID', this.uid);
             request
                 .on('error', reject)
                 .on('response', (response) => {
@@ -70,7 +73,7 @@ export default class SyncService {
                         .on('end', () => {
                             const responseData = Buffer.concat(responseDataBuf).toString();
 
-                            if ([0, 200, 204].indexOf(response.statusCode) > -1) {
+                            if ([0, 200, 201, 204].indexOf(response.statusCode) > -1) {
                                 const contentTypeHeaders = Array.isArray(response.headers['content-type']) ? response.headers['content-type']
                                         : response.headers['content-type'] ? [response.headers['content-type']] : [];
                                 const isJson = contentTypeHeaders.some((x) => x.indexOf('application/json') > -1);
@@ -92,18 +95,14 @@ export default class SyncService {
                         });
                 });
 
-            // Readable.from(formData).pipe(createGzip()).pipe(request as unknown as Writable);
-            try {
-                const source = Readable.from(formData);
-                const gzip = createGzip();
-                await pipe(source, gzip, request as unknown as Writable);
-            } catch (err) {
-                reject(err);
-            }
+            request.chunkedEncoding = true;
+            request.write(formData.toString('base64'));
+            request.end();
         });
     }
 
-    private sign(data: string): string {
+    @boundMethod
+    private async sign(data: string): Promise<string> {
         const key = Array.from(this.uid).sort((a, b) => a.localeCompare(b)).join('');
         return crypto.createHmac('md5', key).update(data).digest('hex');
     }

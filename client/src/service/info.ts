@@ -25,11 +25,12 @@ export default class InfoService {
         this.processesCache.flushAll();
     }
 
-    // @async_timer
+    @async_timer
     public async slice(): Promise<any[]> {
-        const infoData = [];
-
         const ndata = await this.getNetworkConnections();
+        const infoData = [];
+        const seen: {[key: string]: boolean} = {}; // for uniq by pid and peer
+
         for (const conn of ndata) {
             try {
                 const x: ConnectionInfo = {
@@ -40,13 +41,19 @@ export default class InfoService {
                 if ('process' in conn && conn.process !== undefined && conn.process !== null && conn.process !== '') {
                     x._process = conn.process;
                 }
-                infoData.push(x);
 
                 const proc = await this.getProcessByPid(conn.pid);
-                if (proc) {
-                    x.process = { name: proc.name, command: proc.command, started: proc.started };
-                    if (proc.parents && proc.parents.length > 0) {
-                        x.process.parents = proc.parents.map(({ name, started, command }) => ({ name, started, command }));
+                if (!proc) {
+                    infoData.push(x);
+                } else {
+                    const x_process = process.platform === 'win32' || proc.parents?.length === 0 ? proc
+                                        : proc.parents[proc.parents.length - 1];
+                    x.process = { name: x_process.name, command: x_process.command };
+
+                    const uniq_key = [x_process.pid, conn.peeraddress, conn.peerport].join('-');
+                    if (!(uniq_key in seen)) {
+                        seen[uniq_key] = true;
+                        infoData.push(x);
                     }
                 }
             } catch (err) {
@@ -59,7 +66,8 @@ export default class InfoService {
 
     private async getNetworkConnections(): Promise<si.Systeminformation.NetworkConnectionsData[]> {
         const ndata = await si.networkConnections();
-        return ndata.filter((x) => x.peeraddress !== x.localaddress && x.peeraddress !== '*');
+        const re = /\.\d+$/;
+        return ndata.filter((x) => x.peeraddress !== x.localaddress && x.peeraddress !== '*' && x.localaddress.replace(re, '') !== x.peeraddress.replace(re, ''));
     }
 
     private async getProcessByPid(pid: number): Promise<ProcessesProcessDataExtend | undefined> {
