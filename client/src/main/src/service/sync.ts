@@ -18,7 +18,6 @@ const gzipPromisify = promisify<zlib.InputType, Buffer>(zlib.gzip);
  */
 
 export default class SyncService {
-
     constructor(
         private uid: string = 'e0de65e7-fd8f-4fcb-b7d9-e46ecb316fa8',
         private endpoint: string = 'http://localhost:16010/api/v1//'
@@ -47,6 +46,7 @@ export default class SyncService {
                         throw err;
                     }
                     log.info(`[SyncService::sync]   ${err.name}, attemptNumber: ${err.attemptNumber}, retriesLeft=${err.retriesLeft}`);
+                    log.warn(err);
                 },
                 retries: 10,
                 factor: 3,

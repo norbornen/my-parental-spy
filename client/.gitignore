@@ -4,6 +4,8 @@ yarn.lock
 /out
 /dist
 /node_modules
+/release
+/app/dist
 
 # Logs
 logs

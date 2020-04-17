@@ -1,0 +1,25 @@
+{
+  "name": "main",
+  "version": "0.0.1",
+  "keywords": ["typescript", "net"],
+  "author": "norbornen",
+  "license": "ISC",
+  "main": "./src/index.js",
+  "scripts": {
+    "start": "concurrently \"yarn watch\" \"wait-on  ../../app/dist/main/index.js && NODE_ENV=development electron ../../app/dist/main/index.js\"",
+    "build": "NODE_ENV=production tsc",
+    "prewatch": "rimraf ../../app/dist/main",
+    "watch": "tsc -w",
+    "lint": "tslint -c tslint.json -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/http-errors": "^1.6.3",
+    "@types/node": "^12.12.35",
+    "concurrently": "^5.1.0",
+    "rimraf": "^3.0.2",
+    "ts-node": "^8.8.2",
+    "tslint": "^6.1.1",
+    "typescript": "^3.8.3",
+    "wait-on": "^4.0.2"
+  }
+}

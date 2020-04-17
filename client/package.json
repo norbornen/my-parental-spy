@@ -1,17 +1,20 @@
 {
-  "name": "my_parental_spy_client",
+  "name": "my-parental-spy",
   "version": "0.0.1",
-  "scripts": {
-    "build": "tsc",
-    "watch": "tsc -w",
-    "lint": "tslint -c tslint.json -p tsconfig.json",
-    "start": "npm run build && electron ./dist/main.js",
-    "prepack": "check-for-leaks",
-    "prepush": "check-for-leaks"
-  },
-  "keywords": [],
-  "author": "",
+  "keywords": ["typescript", "net"],
+  "author": "norbornen",
   "license": "ISC",
+  "private": true,
+  "main": "app/dist/main/index.js",
+  "scripts": {
+    "build": "yarn workspace main build",
+    "electron-build": "yarn build && electron-builder",
+    "build:app": "yarn electron-build --dir",
+    "build:all": "yarn electron-build build -mwl",
+    "build:mac": "yarn electron-build build --mac",
+    "build:linux": "yarn electron-build build --linux",
+    "build:windows": "yarn electron-build build --windows --x64"
+  },
   "dependencies": {
     "autobind-decorator": "^2.4.0",
     "electron-log": "^4.1.1",
@@ -23,12 +26,35 @@
     "yieldable-json": "^2.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.12.35",
-    "@types/http-errors": "^1.6.3",
-    "check-for-leaks": "^1.2.1",
     "electron": "^9.0.0-beta.15",
-    "ts-node": "^8.8.2",
-    "tslint": "^6.1.1",
-    "typescript": "^3.8.3"
+    "electron-builder": "^22.5.1"
+  },
+  "workspaces": [
+    "src/*"
+  ],
+  "build": {
+    "productName": "my-parental-spy",
+    "appId": "org.dev.my-parental-spy",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "app/**/*"
+    ],
+    "mac": {
+      "icon": "resources/icons/icon.icns"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "category": "Development"
+    }
   }
 }

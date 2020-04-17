@@ -3,7 +3,6 @@ import * as si from 'systeminformation';
 import NodeCache from 'node-cache';
 import { async_timer } from 'execution-time-decorators';
 
-
 interface ProcessesProcessDataExtend extends si.Systeminformation.ProcessesProcessData {
     parents: si.Systeminformation.ProcessesProcessData[];
 }

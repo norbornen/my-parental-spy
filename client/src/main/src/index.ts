@@ -3,6 +3,8 @@ import { app, Tray, Menu } from 'electron';
 import log from 'electron-log';
 import WatchdogService from './service/watchdog';
 
+
+console.log = log.log;
 const gotTheSingleInstanceLock = app.requestSingleInstanceLock();
 let appIcon: Tray;
 let watchdog: WatchdogService;
@@ -66,9 +68,10 @@ app.on('will-quit', () => {
 
 async function createTray() {
     const iconName = process.platform === 'win32' ? 'windows-icon.png' : 'iconTemplate.png'
-    const iconPath = path.join(__dirname, '../assets/tray', iconName);
+    const iconPath = app.isPackaged ? '../../../app/resources/tray/' : '../../resources/tray/';
+    const iconFile = path.join(__dirname, iconPath, iconName);
 
-    appIcon = new Tray(iconPath);
+    appIcon = new Tray(iconFile);
 
     const contextMenu = Menu.buildFromTemplate([
         // { type: 'separator' },
