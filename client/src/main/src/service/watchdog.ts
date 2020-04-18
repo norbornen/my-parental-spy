@@ -1,5 +1,5 @@
 import log from 'electron-log';
-import { powerMonitor } from 'electron';
+import { app, powerMonitor } from 'electron';
 import SyncService from './sync';
 import InfoService from './info';
 import { boundMethod } from 'autobind-decorator';
@@ -24,26 +24,27 @@ export default class WatchdogService {
     constructor(
         private readonly uid: string,
         private readonly endpoint: string,
-        infoTimeout?: string,
-        syncTimeout?: string
+        infoTimeout?: number,
+        syncTimeout?: number
     ) {
-        if (this.uid === null && this.uid === undefined && this.uid === '') {
-            throw new Error('uid is not defined');
-        }
-        if (this.endpoint === null && this.endpoint === undefined && this.endpoint === '') {
-            throw new Error('endpoint is not defined');
-        }
-        if (infoTimeout !== null && infoTimeout !== undefined && infoTimeout !== '') {
+        if (!!infoTimeout) {
             this.infoTimeout = +infoTimeout;
         }
-        if (syncTimeout !== null && syncTimeout !== undefined && syncTimeout !== '') {
+        if (!!syncTimeout) {
             this.syncTimeout = +syncTimeout;
         }
 
 
         this.powerEventRegister('start');
-        process.nextTick(this.powerMonitorHandler);
+
+        if (app.isReady()) {
+            process.nextTick(this.powerMonitorHandler);
+        } else {
+            app.once('ready', this.powerMonitorHandler)
+        }
+
         process.nextTick(this.releaseHandler);
+
         process.nextTick(this.infoHandler);
     }
 

@@ -1,108 +1,35 @@
-import * as path from 'path';
-import { app, Tray, Menu } from 'electron';
+import { app, dialog } from 'electron';
 import log from 'electron-log';
-import WatchdogService from './service/watchdog';
-import * as dotenv from 'dotenv';
+import Launcher from './launcher';
 
 console.log = log.log; // indev
-const gotTheSingleInstanceLock = app.requestSingleInstanceLock();
-let appIcon: Tray;
-let watchdog: WatchdogService;
-let loggedout: boolean = false;
 
+const launcher = new Launcher();
 
-dotenvLoad();
+launcher.init().catch((err) => {
+    let message: string;
+    if (err instanceof Error) {
+        message = err.message;
+        log.error(`Init failed: ${message}`)
+        log.error(err.stack);
+    } else {
+        message = err;
+    }
 
-if (!gotTheSingleInstanceLock) {
+    if (err && app.isReady()) {
+        dialog.showErrorBox('Spy error: ', message);
+    }
+
     app.quit();
-    process.exit(1);
-}
-
-// app.setLoginItemSettings(settings)
-
-app.on('ready', () => {
-    log.verbose(`Application runing: ${new Date().toString()}`);
-    log.verbose(`   logs: ${app.getPath('logs')}, appData: ${app.getPath('appData')}, isPackaged=${app.isPackaged}`);
-
-    watchdog = createWatchdog();
-
-    app.dock?.hide();
-
-    createTray();
 });
 
-app.on('activate', () => {
-    if (!watchdog) {
-        watchdog = createWatchdog();
-    }
-    if (!appIcon) {
-        createTray();
+process.on('uncaughtException', (err) => {
+    const { message, stack } = err;
+    log.error(`Uncaught exception: ${message}`)
+    log.error(stack, app.isReady())
+
+    if (app.isReady()) {
+        dialog.showErrorBox('Spy error: ', message)
     }
 });
 
-app.on('second-instance', () => {
-    log.warn(`Try second application instance runing...`);
-});
-
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
-});
-
-app.on('before-quit', (event) => {
-    if (loggedout === false) {
-        event.preventDefault();
-
-        (watchdog ? watchdog.destroy() : Promise.resolve())
-            .catch((err) => log.error(err))
-            .finally(() => {
-                loggedout = true;
-                appIcon?.destroy();
-                app.quit();
-            });
-    }
-});
-
-app.on('will-quit', () => {
-    log.verbose(`Application quit: ${new Date().toString()}\n\n`);
-});
-
-async function createTray() {
-    const iconName = process.platform === 'win32' ? 'windows-icon.png' : 'iconTemplate.png'
-    const iconPath = app.isPackaged ? '../../../app/resources/tray/' : '../../resources/tray/';
-    const iconFile = path.join(__dirname, iconPath, iconName);
-
-    appIcon = new Tray(iconFile);
-
-    const contextMenu = Menu.buildFromTemplate([
-        // { type: 'separator' },
-        { label: 'Quit', role: 'quit' }
-    ]);
-    appIcon.setContextMenu(contextMenu);
-
-    appIcon.setToolTip('Intel® Xeon® Processor E5-2600');
-}
-
-function createWatchdog(): WatchdogService {
-    return new WatchdogService(
-        process.env.SPY_UID!,
-        process.env.SPY_SYNC_ENDPOINT!,
-        process.env.SPY_INFO_TIMEOUT,
-        process.env.SPY_SYNC_TIMEOUT
-    );
-}
-
-function dotenvLoad() {
-    let dotenvConfigOptions: dotenv.DotenvConfigOptions;
-    switch (app.isPackaged) {
-        case true: dotenvConfigOptions = { path: path.resolve(__dirname, './../../.env') }; break;
-        default: dotenvConfigOptions = { debug: true }; break;
-    }
-
-    const result = dotenv.config(dotenvConfigOptions);
-    if (result.error) {
-        log.error(result.error);
-    }
-    log.debug(result);
-}

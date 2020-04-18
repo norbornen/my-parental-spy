@@ -7,7 +7,7 @@ import * as crypto from 'crypto';
 import createHttpError, * as HttpErrors from 'http-errors';
 import pRetry from 'p-retry';
 import { boundMethod } from 'autobind-decorator';
-import * as asyncJSON from './async-json';
+import * as asyncJSON from '../util/async-json';
 import { async_timer } from 'execution-time-decorators';
 
 const gzipPromisify = promisify<zlib.InputType, Buffer>(zlib.gzip);
