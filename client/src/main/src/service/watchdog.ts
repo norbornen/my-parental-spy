@@ -27,7 +27,6 @@ export default class WatchdogService {
         _infoTimeout?: string,
         _syncTimeout?: string
     ) {
-        log.info([this.uid, this.endpoint, _infoTimeout, _syncTimeout]);
         if (_infoTimeout !== null && _infoTimeout !== undefined && _infoTimeout !== '') {
             this.infoTimeout = +_infoTimeout;
         }
