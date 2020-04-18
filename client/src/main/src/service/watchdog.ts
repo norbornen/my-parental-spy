@@ -24,14 +24,20 @@ export default class WatchdogService {
     constructor(
         private readonly uid: string,
         private readonly endpoint: string,
-        _infoTimeout?: string,
-        _syncTimeout?: string
+        infoTimeout?: string,
+        syncTimeout?: string
     ) {
-        if (_infoTimeout !== null && _infoTimeout !== undefined && _infoTimeout !== '') {
-            this.infoTimeout = +_infoTimeout;
+        if (this.uid === null && this.uid === undefined && this.uid === '') {
+            throw new Error('uid is not defined');
         }
-        if (_syncTimeout !== null && _syncTimeout !== undefined && _syncTimeout !== '') {
-            this.syncTimeout = +_syncTimeout;
+        if (this.endpoint === null && this.endpoint === undefined && this.endpoint === '') {
+            throw new Error('endpoint is not defined');
+        }
+        if (infoTimeout !== null && infoTimeout !== undefined && infoTimeout !== '') {
+            this.infoTimeout = +infoTimeout;
+        }
+        if (syncTimeout !== null && syncTimeout !== undefined && syncTimeout !== '') {
+            this.syncTimeout = +syncTimeout;
         }
 
 

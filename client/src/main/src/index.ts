@@ -4,7 +4,7 @@ import log from 'electron-log';
 import WatchdogService from './service/watchdog';
 import * as dotenv from 'dotenv';
 
-console.log = log.log;
+console.log = log.log; // indev
 const gotTheSingleInstanceLock = app.requestSingleInstanceLock();
 let appIcon: Tray;
 let watchdog: WatchdogService;
@@ -24,7 +24,7 @@ app.on('ready', () => {
     log.verbose(`Application runing: ${new Date().toString()}`);
     log.verbose(`   logs: ${app.getPath('logs')}, appData: ${app.getPath('appData')}, isPackaged=${app.isPackaged}`);
 
-    watchdog = new WatchdogService(process.env.SPY_UID!, process.env.SPY_SYNC_ENDPOINT!, process.env.SPY_INFO_TIMEOUT, process.env.SPY_SYNC_TIMEOUT);
+    watchdog = createWatchdog();
 
     app.dock?.hide();
 
@@ -32,10 +32,10 @@ app.on('ready', () => {
 });
 
 app.on('activate', () => {
-    if (watchdog === undefined || watchdog === null) {
-        watchdog = new WatchdogService(process.env.SPY_UID!, process.env.SPY_SYNC_ENDPOINT!, process.env.SPY_INFO_TIMEOUT, process.env.SPY_SYNC_TIMEOUT);
+    if (!watchdog) {
+        watchdog = createWatchdog();
     }
-    if (appIcon === undefined || appIcon === null) {
+    if (!appIcon) {
         createTray();
     }
 });
@@ -82,6 +82,15 @@ async function createTray() {
     appIcon.setContextMenu(contextMenu);
 
     appIcon.setToolTip('Intel® Xeon® Processor E5-2600');
+}
+
+function createWatchdog(): WatchdogService {
+    return new WatchdogService(
+        process.env.SPY_UID!,
+        process.env.SPY_SYNC_ENDPOINT!,
+        process.env.SPY_INFO_TIMEOUT,
+        process.env.SPY_SYNC_TIMEOUT
+    );
 }
 
 function dotenvLoad() {

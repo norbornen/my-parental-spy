@@ -37,7 +37,7 @@
     "src/*"
   ],
   "build": {
-    "productName": "my-parental-spy",
+    "productName": "spy",
     "appId": "org.dev.my-parental-spy",
     "directories": {
       "output": "release"
