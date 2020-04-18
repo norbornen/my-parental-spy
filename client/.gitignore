@@ -2,9 +2,8 @@ yarn.lock
 .env
 
 # compiled output
-/out
 /dist
-/node_modules
+node_modules/
 /release
 /app/dist
 
@@ -19,10 +18,6 @@ lerna-debug.log*
 # OS
 .DS_Store
 
-# Tests
-/coverage
-/.nyc_output
-
 # IDEs and editors
 /.idea
 .project
@@ -30,7 +25,6 @@ lerna-debug.log*
 .c9/
 *.launch
 .settings/
-*.sublime-workspace
 
 # IDE - VSCode
 .vscode/*
