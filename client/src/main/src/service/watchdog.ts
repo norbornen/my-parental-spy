@@ -21,7 +21,21 @@ export default class WatchdogService {
     private powerMonitorFn?: PowerMonitorFnDictionary;
     private eventCollection: EventCollectionItem[] = [];
 
-    constructor() {
+    constructor(
+        private readonly uid: string,
+        private readonly endpoint: string,
+        _infoTimeout?: string,
+        _syncTimeout?: string
+    ) {
+        log.info([this.uid, this.endpoint, _infoTimeout, _syncTimeout]);
+        if (_infoTimeout !== null && _infoTimeout !== undefined && _infoTimeout !== '') {
+            this.infoTimeout = +_infoTimeout;
+        }
+        if (_syncTimeout !== null && _syncTimeout !== undefined && _syncTimeout !== '') {
+            this.syncTimeout = +_syncTimeout;
+        }
+
+
         this.powerEventRegister('start');
         process.nextTick(this.powerMonitorHandler);
         process.nextTick(this.releaseHandler);
@@ -130,7 +144,7 @@ export default class WatchdogService {
     }
 
     get syncService() {
-        return this._syncService || (this._syncService = new SyncService());
+        return this._syncService || (this._syncService = new SyncService(this.uid, this.endpoint));
     }
 
 }

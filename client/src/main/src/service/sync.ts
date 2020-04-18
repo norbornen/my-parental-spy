@@ -12,15 +12,10 @@ import { async_timer } from 'execution-time-decorators';
 
 const gzipPromisify = promisify<zlib.InputType, Buffer>(zlib.gzip);
 
-/**
- * TODO
- *  conf env
- */
-
 export default class SyncService {
     constructor(
-        private uid: string = 'e0de65e7-fd8f-4fcb-b7d9-e46ecb316fa8',
-        private endpoint: string = 'http://localhost:16010/api/v1//'
+        private readonly uid: string,
+        private readonly endpoint: string
     ) {}
 
     public async destroy() {
@@ -62,7 +57,7 @@ export default class SyncService {
                 method: 'POST'
             });
             request.setHeader('Content-Type', 'text/plain');
-            request.setHeader('X-UID', this.uid);
+            request.setHeader('User-Agent', this.uid);
             request
                 .on('error', reject)
                 .on('response', (response) => {

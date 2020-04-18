@@ -2,7 +2,7 @@ import * as path from 'path';
 import { app, Tray, Menu } from 'electron';
 import log from 'electron-log';
 import WatchdogService from './service/watchdog';
-
+import * as dotenv from 'dotenv';
 
 console.log = log.log;
 const gotTheSingleInstanceLock = app.requestSingleInstanceLock();
@@ -10,6 +10,8 @@ let appIcon: Tray;
 let watchdog: WatchdogService;
 let loggedout: boolean = false;
 
+
+dotenvLoad();
 
 if (!gotTheSingleInstanceLock) {
     app.quit();
@@ -22,7 +24,7 @@ app.on('ready', () => {
     log.verbose(`Application runing: ${new Date().toString()}`);
     log.verbose(`   logs: ${app.getPath('logs')}, appData: ${app.getPath('appData')}, isPackaged=${app.isPackaged}`);
 
-    watchdog = new WatchdogService();
+    watchdog = new WatchdogService(process.env.SPY_UID!, process.env.SPY_SYNC_ENDPOINT!, process.env.SPY_INFO_TIMEOUT, process.env.SPY_SYNC_TIMEOUT);
 
     app.dock?.hide();
 
@@ -31,7 +33,7 @@ app.on('ready', () => {
 
 app.on('activate', () => {
     if (watchdog === undefined || watchdog === null) {
-        watchdog = new WatchdogService();
+        watchdog = new WatchdogService(process.env.SPY_UID!, process.env.SPY_SYNC_ENDPOINT!, process.env.SPY_INFO_TIMEOUT, process.env.SPY_SYNC_TIMEOUT);
     }
     if (appIcon === undefined || appIcon === null) {
         createTray();
@@ -80,4 +82,18 @@ async function createTray() {
     appIcon.setContextMenu(contextMenu);
 
     appIcon.setToolTip('Intel® Xeon® Processor E5-2600');
+}
+
+function dotenvLoad() {
+    let dotenvConfigOptions: dotenv.DotenvConfigOptions;
+    switch (app.isPackaged) {
+        case true: dotenvConfigOptions = { path: path.resolve(__dirname, './../../.env') }; break;
+        default: dotenvConfigOptions = { debug: true }; break;
+    }
+
+    const result = dotenv.config(dotenvConfigOptions);
+    if (result.error) {
+        log.error(result.error);
+    }
+    log.debug(result);
 }

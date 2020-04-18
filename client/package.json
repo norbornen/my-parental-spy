@@ -1,7 +1,10 @@
 {
   "name": "my-parental-spy",
   "version": "0.0.1",
-  "keywords": ["typescript", "net"],
+  "keywords": [
+    "typescript",
+    "net"
+  ],
   "author": "norbornen",
   "license": "ISC",
   "private": true,
@@ -17,6 +20,7 @@
   },
   "dependencies": {
     "autobind-decorator": "^2.4.0",
+    "dotenv": "^8.2.0",
     "electron-log": "^4.1.1",
     "execution-time-decorators": "^0.0.1",
     "http-errors": "^1.7.3",
@@ -41,6 +45,7 @@
     "files": [
       "app/**/*"
     ],
+    "asar": false,
     "mac": {
       "icon": "resources/icons/icon.icns"
     },
