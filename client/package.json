@@ -1,6 +1,6 @@
 {
   "name": "my-parental-spy",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "keywords": [
     "typescript",
     "net"
@@ -37,15 +37,15 @@
     "src/*"
   ],
   "build": {
-    "productName": "spy",
     "appId": "org.dev.my-parental-spy",
+    "productName": "spy",
+    "artifactName": "${productName}.${ext}",
     "directories": {
       "output": "release"
     },
     "files": [
       "app/**/*"
     ],
-    "asar": false,
     "mac": {
       "icon": "resources/icons/icon.icns"
     },

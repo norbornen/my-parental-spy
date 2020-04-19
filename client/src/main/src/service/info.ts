@@ -66,7 +66,11 @@ export default class InfoService {
     private async getNetworkConnections(): Promise<si.Systeminformation.NetworkConnectionsData[]> {
         const ndata = await si.networkConnections();
         const re = /\.\d+$/;
-        return ndata.filter((x) => x.peeraddress !== x.localaddress && x.peeraddress !== '*' && x.localaddress.replace(re, '') !== x.peeraddress.replace(re, ''));
+        return ndata.filter((x) => x.peeraddress !== x.localaddress
+            && x.peeraddress !== '*'
+            && x.peeraddress !== '0.0.0.0'
+            && x.localaddress.replace(re, '') !== x.peeraddress.replace(re, '')
+        );
     }
 
     private async getProcessByPid(pid: number): Promise<ProcessesProcessDataExtend | undefined> {

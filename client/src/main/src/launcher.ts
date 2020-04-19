@@ -56,7 +56,6 @@ export default class Launcher extends EventEmitter {
         if (result.error) {
             log.error(result.error);
         }
-        log.debug(result);
 
         return result.parsed;
     }
@@ -75,13 +74,17 @@ export default class Launcher extends EventEmitter {
 
         // set enabled only for Windows
         if (!enabled && process.platform === 'win32') {
-            app.setLoginItemSettings({
+            const autoLaunchSettings: Electron.Settings = {
                 openAtLogin: true,
-                openAsHidden: true,
+                openAsHidden: false,
                 args: [
                     '--opened-at-login=1' // for future
                 ]
-            });
+            };
+            if (process.env.PORTABLE_EXECUTABLE_FILE) {
+                autoLaunchSettings.path = process.env.PORTABLE_EXECUTABLE_FILE;
+            }
+            app.setLoginItemSettings(autoLaunchSettings);
         }
     }
 

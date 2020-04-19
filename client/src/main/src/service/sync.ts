@@ -57,7 +57,7 @@ export default class SyncService {
                 method: 'POST'
             });
             request.setHeader('Content-Type', 'text/plain');
-            request.setHeader('User-Agent', this.uid);
+            request.setHeader('X-UID', this.uid);
             request
                 .on('error', reject)
                 .on('response', (response) => {
