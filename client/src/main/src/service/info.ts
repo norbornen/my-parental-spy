@@ -1,6 +1,8 @@
+import { EventEmitter } from 'events';
 import log from 'electron-log';
 import * as si from 'systeminformation';
 import NodeCache from 'node-cache';
+import { boundMethod } from 'autobind-decorator';
 import { async_timer } from 'execution-time-decorators';
 
 interface ProcessesProcessDataExtend extends si.Systeminformation.ProcessesProcessData {
@@ -15,17 +17,64 @@ interface ConnectionInfo {
     _process?: any;
 }
 
-export default class InfoService {
-    private processesCache = new NodeCache({ stdTTL: 53, checkperiod: 10 });
+/*
+    private infoHandler() {
 
-    constructor() {}
+        this.infoTimeoutRef = setTimeout(async () => {
+            this.infoHandler();
+            try {
+                const data = await this.infoService.slice();
+                data?.forEach((x) => this.eventRegister('net', x));
+            } catch (err) {
+                log.error(err);
+            }
+        }, this.infoTimeout);
+    }
+*/
+
+export default class InfoService extends EventEmitter {
+    private processesCache?: NodeCache;
+    private netTimeoutRef?: NodeJS.Timeout;
+
+    constructor(private infoTimeout: number = 1.99 * 1000) {
+        super();
+        process.nextTick(this.init);
+    }
 
     public async destroy() {
-        this.processesCache.flushAll();
+        this.processesCache?.flushAll();
+
+        if (this.netTimeoutRef) {
+            clearTimeout(this.netTimeoutRef);
+            this.netTimeoutRef = undefined;
+        }
+    }
+
+    @boundMethod
+    private init() {
+        const stdTTL = Math.ceil((2 * this.infoTimeout) / 1000) + 1;
+        const checkperiod = Math.ceil(this.infoTimeout / 1000) + 1;
+        this.processesCache = new NodeCache({ stdTTL, checkperiod });
+
+        this.netTimer();
+    }
+
+    private netTimer() {
+        this.netTimeoutRef = setTimeout(async () => {
+            this.netTimer();
+            try {
+                const data = await this.netHandler();
+                if (data && data.length > 0) {
+                    this.emit('net', data);
+                }
+            } catch (err) {
+                log.error(err);
+            }
+        }, this.infoTimeout);
     }
 
     @async_timer
-    public async slice(): Promise<any[]> {
+    public async netHandler(): Promise<any[]> {
         const ndata = await this.getNetworkConnections();
         const infoData = [];
         const seen: {[key: string]: boolean} = {}; // for uniq by pid and peer
@@ -74,15 +123,15 @@ export default class InfoService {
     }
 
     private async getProcessByPid(pid: number): Promise<ProcessesProcessDataExtend | undefined> {
-        if (!this.processesCache.has(pid)) {
+        if (!this.processesCache!.has(pid)) {
             await this.renewProcessesCache();
         }
 
-        return this.processesCache.get(pid);
+        return this.processesCache!.get(pid);
     }
 
     private async renewProcessesCache() {
-        this.processesCache.flushAll();
+        this.processesCache!.flushAll();
 
         const { list: processes } = await si.processes();
         const processesMap = processes.reduce((acc, x) => acc.set(x.pid, x), new Map<number, si.Systeminformation.ProcessesProcessData>());
@@ -100,7 +149,7 @@ export default class InfoService {
             return acc;
         }, [] as ProcessesProcessDataExtend[]);
 
-        this.processesCache.mset(
+        this.processesCache!.mset(
             extendProcesses.map((x) => ({key: x.pid, val: x}))
         );
     }

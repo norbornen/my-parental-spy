@@ -10,16 +10,17 @@ type EventCollectionItem = { type: EventType; date: Date; payload?: string };
 type PowerEventType = 'start' | 'stop' | 'suspend' | 'resume' | 'shutdown';
 type PowerMonitorFnDictionary = { [key in Partial<PowerEventType>]: () => void };
 
+
 export default class WatchdogService {
-    private _syncService?: SyncService;
-    private _infoService?: InfoService;
-    private infoTimeout = 1.99 * 1000;
+    private eventCollection: EventCollectionItem[] = [];
+
+    private infoService?: InfoService;
+    private infoTimeout?: number;
+    private syncService?: SyncService;
     private syncTimeout = 2 * 60 * 1000;
-    private infoTimeoutRef?: NodeJS.Timeout;
     private syncTimeoutRef?: NodeJS.Timeout;
 
-    private powerMonitorFn?: PowerMonitorFnDictionary;
-    private eventCollection: EventCollectionItem[] = [];
+    private powerMonitorListeners?: PowerMonitorFnDictionary;
 
     constructor(
         private readonly uid: string,
@@ -34,73 +35,71 @@ export default class WatchdogService {
             this.syncTimeout = +syncTimeout;
         }
 
-
-        this.powerEventRegister('start');
-
-        if (app.isReady()) {
-            process.nextTick(this.powerMonitorHandler);
-        } else {
-            app.once('ready', this.powerMonitorHandler)
-        }
-
-        process.nextTick(this.releaseHandler);
-
-        process.nextTick(this.infoHandler);
+        process.nextTick(this.init);
     }
 
     public async destroy() {
-        if (this.infoTimeoutRef) {
-            clearTimeout(this.infoTimeoutRef);
-            this.infoTimeoutRef = undefined;
+        if (this.infoService) {
+            try {
+                this.infoService.removeAllListeners();
+                await this.infoService.destroy();
+                this.infoService = undefined;
+            } catch (err) {
+                log.error(err);
+            }
         }
+
+        if (this.powerMonitorListeners) {
+            const powerMonitorFn = this.powerMonitorListeners!;
+            (Object.keys(powerMonitorFn) as PowerEventType[]).forEach((key) => {
+                powerMonitor.off(key as any, powerMonitorFn[key]);
+            });
+            this.powerMonitorListeners = undefined;
+        }
+
         if (this.syncTimeoutRef) {
             clearTimeout(this.syncTimeoutRef);
             this.syncTimeoutRef = undefined;
         }
-        if (this.powerMonitorFn) {
-            const powerMonitorFn = this.powerMonitorFn!;
-            (Object.keys(powerMonitorFn) as PowerEventType[]).forEach((key) => {
-                powerMonitor.off(key as any, powerMonitorFn[key]);
-            });
-            this.powerMonitorFn = undefined;
-        }
 
-        try {
-            await this.infoService?.destroy();
-            this._infoService = undefined;
-        } catch (err) {
-            log.error(err);
-        }
 
-        try {
-            this.powerEventRegister('stop');
-            await this.release(true);
-        } catch (err) {
-            log.error(err);
-        }
+        this.powerEventRegister('stop');
+        await this.release(true);
 
         try {
             await this.syncService?.destroy();
-            this._syncService = undefined;
+            this.syncService = undefined;
         } catch (err) {
             log.error(err);
         }
     }
 
     @boundMethod
-    private infoHandler() {
-        this.infoTimeoutRef = setTimeout(async () => {
-            this.infoHandler();
-            try {
-                const data = await this.infoService.slice();
-                data?.forEach((x) => this.eventRegister('net', x));
-            } catch (err) {
-                log.error(err);
-            }
-        }, this.infoTimeout);
+    private init() {
+        this.syncService = new SyncService(this.uid, this.endpoint);
+
+        //
+        this.powerEventRegister('start');
+
+        if (app.isReady()) {
+            this.powerMonitorHandler();
+        } else {
+            app.once('ready', this.powerMonitorHandler);
+        }
+
+        this.infoService = new InfoService(this.infoTimeout);
+        this.infoService
+            .on('net', (d) => {
+                (Array.isArray(d) ? d : [d]).forEach((x) => this.eventRegister('net', x));
+            })
+            .on('power', (d) => {
+                (Array.isArray(d) ? d : [d]).forEach((x) => this.powerEventRegister(x));
+            });
+        //
+
+        this.releaseHandler();
     }
 
-    @boundMethod
     private releaseHandler() {
         this.syncTimeoutRef = setTimeout(async () => {
             this.releaseHandler();
@@ -110,9 +109,9 @@ export default class WatchdogService {
 
     @boundMethod
     private powerMonitorHandler() {
-        this.powerMonitorFn = (['suspend', 'resume', 'shutdown'] as Exclude<PowerEventType, 'start' | 'stop'>[]).reduce((acc, key) => {
-            const fn = acc[key] = () => this.powerEventRegister(key);
-            powerMonitor.on(key as any, fn);
+        this.powerMonitorListeners = (['suspend', 'resume', 'shutdown'] as Exclude<PowerEventType, 'start' | 'stop'>[]).reduce((acc, key) => {
+            acc[key] = () => this.powerEventRegister(key);
+            powerMonitor.on(key as any, acc[key]);
             return acc;
         }, {} as PowerMonitorFnDictionary);
     }
@@ -135,22 +134,14 @@ export default class WatchdogService {
         if (eventCollection.length > 0) {
             try {
                 if (doOnce) {
-                    await this.syncService.syncOnce(eventCollection);
+                    await this.syncService!.syncOnce(eventCollection);
                 } else {
-                    await this.syncService.sync(eventCollection);
+                    await this.syncService!.sync(eventCollection);
                 }
             } catch (err) {
                 log.error(err);
             }
         }
-    }
-
-    get infoService() {
-        return this._infoService || (this._infoService = new InfoService());
-    }
-
-    get syncService() {
-        return this._syncService || (this._syncService = new SyncService(this.uid, this.endpoint));
     }
 
 }

@@ -145,9 +145,7 @@ export default class Launcher extends EventEmitter {
     }
 
     private handleAppWillQuit() {
-        app.on('will-quit', () => {
-            log.verbose(`Application quit: ${new Date().toString()}\n\n`);
-        });
+        app.on('will-quit', () => log.verbose(`Application quit: ${new Date().toString()}\n\n`));
     }
 
     private isNilOrEmpty(x: any): boolean {
