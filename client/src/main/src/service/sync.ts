@@ -49,6 +49,7 @@ export default class SyncService {
         );
     }
 
+    @async_timer
     private async sync_req(formData: Buffer, sign?: string): Promise<any> {
         return new Promise((resolve, reject) => {
             const syncUrl = `${this.endpoint}/sync?sign=${sign}`.replace(/(?<!:)\/{2,}/g, '/');

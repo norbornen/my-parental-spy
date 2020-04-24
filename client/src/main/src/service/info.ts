@@ -29,6 +29,7 @@ export default class InfoService extends EventEmitter {
 
     public async destroy() {
         this.processesCache?.flushAll();
+        this.processesCache?.close();
 
         if (this.netTimeoutRef) {
             clearTimeout(this.netTimeoutRef);
@@ -40,10 +41,7 @@ export default class InfoService extends EventEmitter {
 
     @boundMethod
     private init() {
-        const stdTTL = Math.ceil((2 * this.infoTimeout) / 1000) + 1; // не правильно, тут должно быть больше на порядок
-        const checkperiod = Math.ceil(this.infoTimeout / 1000) + 1;
-        log.info(this.infoTimeout, stdTTL, checkperiod)
-        this.processesCache = new NodeCache({ stdTTL, checkperiod });
+        this.processesCache = new NodeCache({ stdTTL: 58, checkperiod: 29 });
 
         if (app.isReady()) {
             this.powerMonitor();
@@ -94,8 +92,13 @@ export default class InfoService extends EventEmitter {
                     x._process = conn.process;
                 }
 
-                const proc = await this.getProcessByPid(conn.pid);
+                let proc: ProcessesProcessDataExtend | undefined;
+                if (conn.pid !== null && conn.pid !== undefined && /^\d+$/.test(`${conn.pid}`)) {
+                    proc = await this.getProcessByPid(conn.pid);
+                }
+
                 if (!proc) {
+                    // log.warn(conn);
                     infoData.push(x);
                 } else {
                     const x_process = process.platform === 'win32' || proc.parents?.length === 0 ? proc
@@ -116,6 +119,7 @@ export default class InfoService extends EventEmitter {
         return infoData;
     }
 
+    @async_timer
     private async getNetworkConnections(): Promise<si.Systeminformation.NetworkConnectionsData[]> {
         const ndata = await si.networkConnections();
         const re = /\.\d+$/;
@@ -131,9 +135,10 @@ export default class InfoService extends EventEmitter {
             await this.renewProcessesCache();
         }
 
-        return this.processesCache!.get(pid);
+        return this.processesCache!.get<ProcessesProcessDataExtend>(pid);
     }
 
+    @async_timer
     private async renewProcessesCache() {
         this.processesCache!.flushAll();
 
