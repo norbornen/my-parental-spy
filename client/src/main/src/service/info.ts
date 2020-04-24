@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { app, powerMonitor } from 'electron';
 import log from 'electron-log';
 import * as si from 'systeminformation';
 import NodeCache from 'node-cache';
@@ -17,21 +18,6 @@ interface ConnectionInfo {
     _process?: any;
 }
 
-/*
-    private infoHandler() {
-
-        this.infoTimeoutRef = setTimeout(async () => {
-            this.infoHandler();
-            try {
-                const data = await this.infoService.slice();
-                data?.forEach((x) => this.eventRegister('net', x));
-            } catch (err) {
-                log.error(err);
-            }
-        }, this.infoTimeout);
-    }
-*/
-
 export default class InfoService extends EventEmitter {
     private processesCache?: NodeCache;
     private netTimeoutRef?: NodeJS.Timeout;
@@ -48,20 +34,38 @@ export default class InfoService extends EventEmitter {
             clearTimeout(this.netTimeoutRef);
             this.netTimeoutRef = undefined;
         }
+
+        powerMonitor.removeAllListeners();
     }
 
     @boundMethod
     private init() {
-        const stdTTL = Math.ceil((2 * this.infoTimeout) / 1000) + 1;
+        const stdTTL = Math.ceil((2 * this.infoTimeout) / 1000) + 1; // не правильно, тут должно быть больше на порядок
         const checkperiod = Math.ceil(this.infoTimeout / 1000) + 1;
+        log.info(this.infoTimeout, stdTTL, checkperiod)
         this.processesCache = new NodeCache({ stdTTL, checkperiod });
 
-        this.netTimer();
+        if (app.isReady()) {
+            this.powerMonitor();
+        } else {
+            app.once('ready', this.powerMonitor);
+        }
+
+        this.netMonitor();
     }
 
-    private netTimer() {
+    @boundMethod
+    private powerMonitor() {
+        powerMonitor.on('suspend', () => this.emit('power', 'suspend'));
+        powerMonitor.on('resume', () => this.emit('power', 'resume'));
+        powerMonitor.on('shutdown', () => this.emit('power', 'shutdown'));
+    }
+
+    @boundMethod
+    private netMonitor() {
         this.netTimeoutRef = setTimeout(async () => {
-            this.netTimer();
+            process.nextTick(this.netMonitor);
+
             try {
                 const data = await this.netHandler();
                 if (data && data.length > 0) {

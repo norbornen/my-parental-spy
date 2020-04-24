@@ -1,5 +1,4 @@
 import log from 'electron-log';
-import { app, powerMonitor } from 'electron';
 import SyncService from './sync';
 import InfoService from './info';
 import { boundMethod } from 'autobind-decorator';
@@ -8,7 +7,6 @@ import { boundMethod } from 'autobind-decorator';
 type EventType = 'power' | 'net';
 type EventCollectionItem = { type: EventType; date: Date; payload?: string };
 type PowerEventType = 'start' | 'stop' | 'suspend' | 'resume' | 'shutdown';
-type PowerMonitorFnDictionary = { [key in Partial<PowerEventType>]: () => void };
 
 
 export default class WatchdogService {
@@ -19,8 +17,6 @@ export default class WatchdogService {
     private syncService?: SyncService;
     private syncTimeout = 2 * 60 * 1000;
     private syncTimeoutRef?: NodeJS.Timeout;
-
-    private powerMonitorListeners?: PowerMonitorFnDictionary;
 
     constructor(
         private readonly uid: string,
@@ -39,22 +35,12 @@ export default class WatchdogService {
     }
 
     public async destroy() {
-        if (this.infoService) {
-            try {
-                this.infoService.removeAllListeners();
-                await this.infoService.destroy();
-                this.infoService = undefined;
-            } catch (err) {
-                log.error(err);
-            }
-        }
-
-        if (this.powerMonitorListeners) {
-            const powerMonitorFn = this.powerMonitorListeners!;
-            (Object.keys(powerMonitorFn) as PowerEventType[]).forEach((key) => {
-                powerMonitor.off(key as any, powerMonitorFn[key]);
-            });
-            this.powerMonitorListeners = undefined;
+        try {
+            this.infoService?.removeAllListeners();
+            await this.infoService?.destroy();
+            this.infoService = undefined;
+        } catch (err) {
+            log.error(err);
         }
 
         if (this.syncTimeoutRef) {
@@ -64,7 +50,7 @@ export default class WatchdogService {
 
 
         this.powerEventRegister('stop');
-        await this.release(true);
+        await this.releaseOnce(this.eventCollection);
 
         try {
             await this.syncService?.destroy();
@@ -76,17 +62,9 @@ export default class WatchdogService {
 
     @boundMethod
     private init() {
-        this.syncService = new SyncService(this.uid, this.endpoint);
-
-        //
         this.powerEventRegister('start');
 
-        if (app.isReady()) {
-            this.powerMonitorHandler();
-        } else {
-            app.once('ready', this.powerMonitorHandler);
-        }
-
+        //
         this.infoService = new InfoService(this.infoTimeout);
         this.infoService
             .on('net', (d) => {
@@ -95,25 +73,10 @@ export default class WatchdogService {
             .on('power', (d) => {
                 (Array.isArray(d) ? d : [d]).forEach((x) => this.powerEventRegister(x));
             });
+
         //
-
-        this.releaseHandler();
-    }
-
-    private releaseHandler() {
-        this.syncTimeoutRef = setTimeout(async () => {
-            this.releaseHandler();
-            await this.release();
-        }, this.syncTimeout);
-    }
-
-    @boundMethod
-    private powerMonitorHandler() {
-        this.powerMonitorListeners = (['suspend', 'resume', 'shutdown'] as Exclude<PowerEventType, 'start' | 'stop'>[]).reduce((acc, key) => {
-            acc[key] = () => this.powerEventRegister(key);
-            powerMonitor.on(key as any, acc[key]);
-            return acc;
-        }, {} as PowerMonitorFnDictionary);
+        this.syncService = new SyncService(this.uid, this.endpoint);
+        this.releaseMonitor();
     }
 
     private eventRegister(type: EventType, payload?: any) {
@@ -128,16 +91,33 @@ export default class WatchdogService {
         this.eventRegister('power', { type });
     }
 
-    private async release(doOnce: boolean = false) {
-        const eventCollection = this.eventCollection;
-        this.eventCollection = [];
-        if (eventCollection.length > 0) {
+    @boundMethod
+    private releaseMonitor() {
+        this.syncTimeoutRef = setTimeout(async () => {
+            process.nextTick(this.releaseMonitor);
+
+            const eventCollection = this.eventCollection;
+            this.eventCollection = [];
+            if (eventCollection && eventCollection.length > 0) {
+                await this.release(eventCollection);
+            }
+        }, this.syncTimeout);
+    }
+
+    private async release(data: any) {
+        if (data !== null && data !== undefined) {
             try {
-                if (doOnce) {
-                    await this.syncService!.syncOnce(eventCollection);
-                } else {
-                    await this.syncService!.sync(eventCollection);
-                }
+                await this.syncService!.sync(data);
+            } catch (err) {
+                log.error(err);
+            }
+        }
+    }
+
+    private async releaseOnce(data: any) {
+        if (data !== null && data !== undefined) {
+            try {
+                await this.syncService!.syncOnce(data);
             } catch (err) {
                 log.error(err);
             }
