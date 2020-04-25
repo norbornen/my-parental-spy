@@ -1,25 +1,17 @@
 import { EventEmitter } from 'events';
 import { app, powerMonitor } from 'electron';
 import log from 'electron-log';
-import * as si from 'systeminformation';
+import NetstatService, { NetworkConnectionData } from './info/netstat';
 import NodeCache from 'node-cache';
 import { boundMethod } from 'autobind-decorator';
 import { async_timer } from 'execution-time-decorators';
 
-interface ProcessesProcessDataExtend extends si.Systeminformation.ProcessesProcessData {
-    parents: si.Systeminformation.ProcessesProcessData[];
-}
 
-interface ConnectionInfo {
-    protocol: any;
-    peeraddress: any;
-    peerport: any;
-    process?: any;
-    _process?: any;
-}
+type N = Pick<NetworkConnectionData, 'protocol' | 'peeraddress' | 'peerport'> & { process?: string };
+
 
 export default class InfoService extends EventEmitter {
-    private processesCache?: NodeCache;
+    private readonly netstatService = new NetstatService();
     private netTimeoutRef?: NodeJS.Timeout;
 
     constructor(private infoTimeout: number = 1.99 * 1000) {
@@ -28,21 +20,18 @@ export default class InfoService extends EventEmitter {
     }
 
     public async destroy() {
-        this.processesCache?.flushAll();
-        this.processesCache?.close();
-
         if (this.netTimeoutRef) {
             clearTimeout(this.netTimeoutRef);
             this.netTimeoutRef = undefined;
         }
 
         powerMonitor.removeAllListeners();
+
+        await this.netstatService.destroy();
     }
 
     @boundMethod
     private init() {
-        this.processesCache = new NodeCache({ stdTTL: 58, checkperiod: 29 });
-
         if (app.isReady()) {
             this.powerMonitor();
         } else {
@@ -76,91 +65,29 @@ export default class InfoService extends EventEmitter {
     }
 
     @async_timer
-    public async netHandler(): Promise<any[]> {
-        const ndata = await this.getNetworkConnections();
-        const infoData = [];
-        const seen: {[key: string]: boolean} = {}; // for uniq by pid and peer
+    public async netHandler(): Promise<N[]> {
+        const networkConnectionsData = await this.netstatService.networkConnections();
 
-        for (const conn of ndata) {
-            try {
-                const x: ConnectionInfo = {
-                    protocol: conn.protocol,
-                    peeraddress: conn.peeraddress,
-                    peerport: conn.peerport,
-                };
-                if ('process' in conn && conn.process !== undefined && conn.process !== null && conn.process !== '') {
-                    x._process = conn.process;
-                }
-
-                let proc: ProcessesProcessDataExtend | undefined;
-                if (conn.pid !== null && conn.pid !== undefined && /^\d+$/.test(`${conn.pid}`)) {
-                    proc = await this.getProcessByPid(conn.pid);
-                }
-
-                if (!proc) {
-                    // log.warn(conn);
-                    infoData.push(x);
-                } else {
-                    const x_process = process.platform === 'win32' || proc.parents?.length === 0 ? proc
-                                        : proc.parents[proc.parents.length - 1];
-                    x.process = { name: x_process.name, command: x_process.command };
-
-                    const uniq_key = [x_process.pid, conn.peeraddress, conn.peerport].join('-');
-                    if (!(uniq_key in seen)) {
-                        seen[uniq_key] = true;
-                        infoData.push(x);
-                    }
-                }
-            } catch (err) {
-                log.warn(err);
-            }
-        }
-
-        return infoData;
-    }
-
-    @async_timer
-    private async getNetworkConnections(): Promise<si.Systeminformation.NetworkConnectionsData[]> {
-        const ndata = await si.networkConnections();
-        const re = /\.\d+$/;
-        return ndata.filter((x) => x.peeraddress !== x.localaddress
-            && x.peeraddress !== '*'
-            && x.peeraddress !== '0.0.0.0'
-            && x.localaddress.replace(re, '') !== x.peeraddress.replace(re, '')
-        );
-    }
-
-    private async getProcessByPid(pid: number): Promise<ProcessesProcessDataExtend | undefined> {
-        if (!this.processesCache!.has(pid)) {
-            await this.renewProcessesCache();
-        }
-
-        return this.processesCache!.get<ProcessesProcessDataExtend>(pid);
-    }
-
-    @async_timer
-    private async renewProcessesCache() {
-        this.processesCache!.flushAll();
-
-        const { list: processes } = await si.processes();
-        const processesMap = processes.reduce((acc, x) => acc.set(x.pid, x), new Map<number, si.Systeminformation.ProcessesProcessData>());
-        const extendProcesses = processes.reduce((acc, x) => {
-            const parents: si.Systeminformation.ProcessesProcessData[] = [];
-            let parentPid: number | undefined = x.parentPid;
-            while (parentPid !== undefined && parentPid !== null && [0, 1, 4].indexOf(parentPid) === -1) {
-                const p = processesMap.get(parentPid);
-                parentPid = p?.parentPid !== parentPid ? p?.parentPid : undefined;
-                if (p) {
-                    parents.push(p);
+        const { data } = networkConnectionsData.reduce((acc, x) => {
+            if (x.peeraddress !== null && x.peeraddress !== undefined &&
+                x.peeraddress !== x.localaddress &&
+                x.peeraddress !== '*' && x.peeraddress !== '0.0.0.0'
+            ) {
+                const uniq_key = [x.pid, x.peeraddress, x.peerport].join('-');
+                if (!(uniq_key in acc.seen)) {
+                    acc.seen[uniq_key] = true;
+                    acc.data.push({
+                        protocol: x.protocol,
+                        peeraddress: x.peeraddress,
+                        peerport: x.peerport,
+                        process: x.process?.name
+                    });
                 }
             }
-            acc.push({ ...x, parents })
             return acc;
-        }, [] as ProcessesProcessDataExtend[]);
+        }, { seen: {} as {[key: string]: boolean}, data: [] as N[]});
 
-        this.processesCache!.mset(
-            extendProcesses.map((x) => ({key: x.pid, val: x}))
-        );
+        return data;
     }
 
 }
