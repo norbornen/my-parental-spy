@@ -5,8 +5,8 @@ import { boundMethod } from 'autobind-decorator';
 
 
 type EventType = 'power' | 'net';
-type EventCollectionItem = { type: EventType; date: Date; payload?: string };
 type PowerEventType = 'start' | 'stop' | 'suspend' | 'resume' | 'shutdown';
+type EventCollectionItem = { type: EventType; date: Date; payload?: any };
 
 
 export default class WatchdogService {
@@ -76,7 +76,7 @@ export default class WatchdogService {
 
         //
         this.syncService = new SyncService(this.uid, this.endpoint);
-        this.releaseMonitor();
+        this.syncMonitor();
     }
 
     private eventRegister(type: EventType, payload?: any) {
@@ -92,9 +92,9 @@ export default class WatchdogService {
     }
 
     @boundMethod
-    private releaseMonitor() {
+    private syncMonitor() {
         this.syncTimeoutRef = setTimeout(async () => {
-            process.nextTick(this.releaseMonitor);
+            process.nextTick(this.syncMonitor);
 
             const eventCollection = this.eventCollection;
             this.eventCollection = [];

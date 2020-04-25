@@ -64,13 +64,14 @@ export default class NetstatService {
 
     private netstat(): Promise<InternalNetworkConnectionData[]> {
         return new Promise((resolve, reject) => {
-            const netstatData: InternalNetworkConnectionData[] = [];
+            let netstatData: InternalNetworkConnectionData[] = [];
             netstat({
                 done: (err?: Error) => {
                     if (err) {
                         reject(err);
                     }
                     resolve(netstatData);
+                    netstatData = [];
                 }
             }, (x: InternalNetworkConnectionData) => netstatData.push(x));
         });
