@@ -22,18 +22,18 @@
   "dependencies": {
     "autobind-decorator": "^2.4.0",
     "dotenv": "^8.2.0",
-    "electron-log": "^4.1.1",
+    "electron-log": "^4.3.4",
     "execution-time-decorators": "^0.0.1",
-    "http-errors": "^1.7.3",
-    "node-cache": "^5.1.0",
+    "http-errors": "^1.8.0",
+    "node-cache": "^5.1.2",
     "node-netstat": "^1.8.0",
-    "p-retry": "^4.2.0",
-    "ps-list": "^7.0.0",
-    "yieldable-json": "^2.0.0"
+    "p-retry": "^4.5.0",
+    "ps-list": "^7.2.0",
+    "yieldable-json": "^2.0.1"
   },
   "devDependencies": {
-    "electron": "^9.0.0-beta.18",
-    "electron-builder": "^22.5.1"
+    "electron": "^12.0.5",
+    "electron-builder": "^22.10.5"
   },
   "workspaces": [
     "src/*"
